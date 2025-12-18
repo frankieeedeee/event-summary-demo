@@ -4,8 +4,6 @@ export function generateReport(
   validAttendees: AttendeeRow[],
   cancelledAttendees: AttendeeRow[]
 ): ReportData {
-  console.log(`[Report Generator] Generating report with ${validAttendees.length} valid and ${cancelledAttendees.length} cancelled attendees`);
-  
   // Use event name from first valid attendee (or first cancelled if no valid)
   const eventName =
     validAttendees.length > 0
@@ -14,11 +12,8 @@ export function generateReport(
         ? cancelledAttendees[0].eventName
         : '';
 
-  console.log(`[Report Generator] Event name: "${eventName}"`);
-
   // Combine all attendees
   const allAttendees = [...validAttendees, ...cancelledAttendees];
-  console.log(`[Report Generator] Total attendees to process: ${allAttendees.length}`);
 
   // Aggregate by ticket type
   const ticketTypeMap = new Map<string, ReportRow>();
@@ -152,8 +147,6 @@ export function generateReport(
       );
     }
   }
-
-  console.log(`[Report Generator] Generated report with ${rows.length} ticket types and ${gatewayRows.length} gateways:`, { rows, gatewayRows });
 
   return {
     eventName,

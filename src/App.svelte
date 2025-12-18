@@ -1,9 +1,18 @@
 <script lang="ts">
   import { parseCSVFile } from './lib/csvParser';
   import { generateReport } from './lib/reportGenerator';
-  import type { ReportData } from './lib/types';
+  import type { ReportData, AttendeeRow } from './lib/types';
 
   type PrimaryDimension = 'ticketType' | 'gateway';
+
+  const SESSION_STORAGE_KEY = 'hx-event-summary-report-data';
+  const DATA_VERSION = 1;
+
+  interface StoredData {
+    version: number;
+    validAttendees: AttendeeRow[];
+    cancelledAttendees: AttendeeRow[];
+  }
 
   let validFile: File | null = null;
   let cancelledFile: File | null = null;
@@ -14,6 +23,29 @@
   let breakdownByGateway = false;
   let breakdownByTicketType = false;
   let expandedRows = new Set<string>();
+  let uploadPanelExpanded = true;
+
+  // Load from session storage on mount
+  if (typeof window !== 'undefined') {
+    const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed: StoredData = JSON.parse(stored);
+        
+        // Check version - if outdated, clear storage and force re-upload
+        if (parsed.version < DATA_VERSION) {
+          sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        } else if (parsed.validAttendees && parsed.cancelledAttendees) {
+          // Regenerate reportData from stored attendee data
+          reportData = generateReport(parsed.validAttendees, parsed.cancelledAttendees);
+          uploadPanelExpanded = false; // Collapse if data is loaded
+        }
+      } catch (e) {
+        // Invalid data, clear it
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+    }
+  }
 
   async function handleValidFileChange(event: Event) {
     const target = event.target as HTMLInputElement;
@@ -35,14 +67,8 @@
 
   async function processFiles() {
     if (!validFile || !cancelledFile) {
-      console.log('[App] Waiting for both files to be uploaded');
       return;
     }
-
-    console.log('[App] Starting to process files:', {
-      validFile: validFile.name,
-      cancelledFile: cancelledFile.name
-    });
 
     processing = true;
     error = null;
@@ -50,23 +76,45 @@
 
     try {
       const validAttendees = await parseCSVFile(validFile, 'Valid');
-      console.log('[App] Valid attendees parsed:', validAttendees.length);
-      
       const cancelledAttendees = await parseCSVFile(cancelledFile, 'Cancelled');
-      console.log('[App] Cancelled attendees parsed:', cancelledAttendees.length);
+      
+      // Combine both CSVs
+      const combinedAttendees = [...validAttendees, ...cancelledAttendees];
+      
+      // Log first 100 rows of combined result
+      console.log('Combined CSV result (first 100 rows):', combinedAttendees.slice(0, 100));
       
       reportData = generateReport(validAttendees, cancelledAttendees);
-      console.log('[App] Report generated:', {
-        eventName: reportData.eventName,
-        rowCount: reportData.rows.length,
-        reportData
-      });
+      
+      // Store parsed attendee data (result of csvParser) in session storage with version
+      if (typeof window !== 'undefined') {
+        const storedData: StoredData = {
+          version: DATA_VERSION,
+          validAttendees,
+          cancelledAttendees,
+        };
+        sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(storedData));
+      }
+      
+      // Clear raw data from memory (validAttendees and cancelledAttendees are now stored)
+      // Collapse upload panel
+      uploadPanelExpanded = false;
     } catch (err) {
-      console.error('[App] Error processing files:', err);
       error = err instanceof Error ? err.message : 'An unknown error occurred';
     } finally {
       processing = false;
-      console.log('[App] Processing complete');
+    }
+  }
+
+  function handleUploadAgain() {
+    uploadPanelExpanded = true;
+    validFile = null;
+    cancelledFile = null;
+    reportData = null;
+    error = null;
+    // Clear session storage when starting new upload
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
     }
   }
 
@@ -104,60 +152,78 @@
     </h1>
 
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 class="text-xl font-semibold text-gray-800 mb-4">Upload CSV Files</h2>
-
-      <div class="space-y-4">
-        <div>
-          <label
-            for="valid-file"
-            class="block text-sm font-medium text-gray-700 mb-2"
-          >
-            Valid Attendees Report
-          </label>
-          <input
-            id="valid-file"
-            type="file"
-            accept=".csv"
-            onchange={handleValidFileChange}
-            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
-          {#if validFile}
-            <p class="mt-2 text-sm text-gray-600">
-              Selected: {validFile.name}
-            </p>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold text-gray-800">
+          Upload CSV Files
+          {#if reportData && !uploadPanelExpanded}
+            <span class="ml-2 text-sm font-normal text-green-600">Done</span>
           {/if}
-        </div>
-
-        <div>
-          <label
-            for="cancelled-file"
-            class="block text-sm font-medium text-gray-700 mb-2"
+        </h2>
+        {#if reportData && !uploadPanelExpanded}
+          <button
+            type="button"
+            onclick={handleUploadAgain}
+            class="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            Cancelled Attendees Report
-          </label>
-          <input
-            id="cancelled-file"
-            type="file"
-            accept=".csv"
-            onchange={handleCancelledFileChange}
-            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
-          {#if cancelledFile}
-            <p class="mt-2 text-sm text-gray-600">
-              Selected: {cancelledFile.name}
-            </p>
-          {/if}
-        </div>
+            Upload again
+          </button>
+        {/if}
       </div>
 
-      {#if processing}
-        <div class="mt-4 text-sm text-gray-600">Processing files...</div>
-      {/if}
+      {#if uploadPanelExpanded}
+        <div class="space-y-4">
+          <div>
+            <label
+              for="valid-file"
+              class="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Valid Attendees Report
+            </label>
+            <input
+              id="valid-file"
+              type="file"
+              accept=".csv"
+              onchange={handleValidFileChange}
+              class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            />
+            {#if validFile}
+              <p class="mt-2 text-sm text-gray-600">
+                Selected: {validFile.name}
+              </p>
+            {/if}
+          </div>
 
-      {#if error}
-        <div class="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-          <p class="text-sm text-red-800">{error}</p>
+          <div>
+            <label
+              for="cancelled-file"
+              class="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Cancelled Attendees Report
+            </label>
+            <input
+              id="cancelled-file"
+              type="file"
+              accept=".csv"
+              onchange={handleCancelledFileChange}
+              class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            />
+            {#if cancelledFile}
+              <p class="mt-2 text-sm text-gray-600">
+                Selected: {cancelledFile.name}
+              </p>
+            {/if}
+          </div>
         </div>
+
+        {#if processing}
+          <div class="mt-4 text-sm text-gray-600">Processing files...</div>
+        {/if}
+
+        {#if error}
+          <div class="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p class="text-sm text-red-800">{error}</p>
+          </div>
+        {/if}
       {/if}
     </div>
 
