@@ -2,6 +2,7 @@ export type AttendeeStatus = 'Valid' | 'Cancelled';
 
 export interface AttendeeRow {
   eventName: string;
+  eventDateTime: string | null;
   ticketType: string;
   paid: number;
   status: AttendeeStatus;

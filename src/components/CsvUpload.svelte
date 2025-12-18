@@ -37,6 +37,7 @@
           if (parsed.version < DATA_VERSION) {
             sessionStorage.removeItem(SESSION_STORAGE_KEY);
           } else if (parsed.validAttendees && parsed.cancelledAttendees) {
+            // eventDateTime is now stored as a string, so no conversion needed
             // Call callback with stored data
             validAttendees = parsed.validAttendees;
             cancelledAttendees = parsed.cancelledAttendees;

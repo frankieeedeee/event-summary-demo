@@ -18,7 +18,12 @@
     }
   });
 
+  let validAttendees = $state<AttendeeRow[]>([]);
+  let cancelledAttendees = $state<AttendeeRow[]>([]);
+
   function handleDataParsed(data: { validAttendees: AttendeeRow[]; cancelledAttendees: AttendeeRow[] }) {
+    validAttendees = data.validAttendees;
+    cancelledAttendees = data.cancelledAttendees;
     reportData = generateReport(data.validAttendees, data.cancelledAttendees);
   }
 
@@ -58,7 +63,7 @@
 
       <CsvUpload onDataParsed={handleDataParsed} />
       {#if reportData}
-        <ReportTable {reportData} />
+        <ReportTable {reportData} {validAttendees} {cancelledAttendees} />
       {/if}
     {/if}
   </div>

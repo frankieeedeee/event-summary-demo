@@ -1,15 +1,118 @@
 <script lang="ts">
-  import type { ReportData } from '../lib/types';
+  import type { ReportData, AttendeeRow } from '../lib/types';
   import { getColumnsForView, getColumnsForTable, type ReportColumn } from '../lib/reportColumns';
+  import { generateReport } from '../lib/reportGenerator';
 
   type PrimaryDimension = 'ticketType' | 'gateway';
 
-  const { reportData } = $props<{ reportData: ReportData | null }>();
+  const { 
+    validAttendees: allValidAttendees,
+    cancelledAttendees: allCancelledAttendees
+  } = $props<{ 
+    reportData: ReportData | null;
+    validAttendees: AttendeeRow[];
+    cancelledAttendees: AttendeeRow[];
+  }>();
 
   let primaryDimension = $state<PrimaryDimension>('ticketType');
   let breakdownByGateway = $state(false);
   let breakdownByTicketType = $state(false);
   let expandedRows = $state(new Set<string>());
+  let selectedDates = $state<Set<string>>(new Set(['all']));
+  let dateAccordionExpanded = $state(false);
+
+  // Extract unique date/time combinations from all attendees
+  const uniqueDates = $derived.by(() => {
+    const dateSet = new Set<string>();
+    for (const attendee of [...allValidAttendees, ...allCancelledAttendees]) {
+      if (attendee.eventDateTime) {
+        dateSet.add(attendee.eventDateTime);
+      }
+    }
+    return Array.from(dateSet).sort();
+  });
+
+  // Format date/time for display (just show the combined string)
+  function formatDateForDisplay(dateTimeStr: string): string {
+    return dateTimeStr;
+  }
+
+  // Get selection status text
+  const selectionStatusText = $derived.by(() => {
+    if (selectedDates.has('all')) {
+      return 'All dates selected';
+    }
+    const count = selectedDates.size;
+    if (count === 0) {
+      return 'No dates selected';
+    } else if (count === 1) {
+      return '1 date selected';
+    } else {
+      return `${count} dates selected`;
+    }
+  });
+
+  // Filter attendees based on selected dates
+  const filteredAttendees = $derived.by(() => {
+    if (selectedDates.has('all')) {
+      return {
+        valid: allValidAttendees,
+        cancelled: allCancelledAttendees
+      };
+    }
+
+    const filteredValid = allValidAttendees.filter((attendee: AttendeeRow) => {
+      if (!attendee.eventDateTime) return false;
+      return selectedDates.has(attendee.eventDateTime);
+    });
+
+    const filteredCancelled = allCancelledAttendees.filter((attendee: AttendeeRow) => {
+      if (!attendee.eventDateTime) return false;
+      return selectedDates.has(attendee.eventDateTime);
+    });
+
+    return {
+      valid: filteredValid,
+      cancelled: filteredCancelled
+    };
+  });
+
+  // Generate report from filtered data
+  const reportData = $derived.by(() => {
+    const filtered = filteredAttendees;
+    return generateReport(filtered.valid, filtered.cancelled);
+  });
+
+  function handleDateSelection(dateStr: string) {
+    const newSelectedDates = new Set(selectedDates);
+    if (dateStr === 'all') {
+      // Toggle "all" - if it's currently selected, unselect it; otherwise select it
+      if (newSelectedDates.has('all')) {
+        // Unchecking "all" - remove it and allow individual selections
+        newSelectedDates.delete('all');
+        // If no individual dates are selected, don't add anything (user can then select individual dates)
+      } else {
+        // Checking "all" - clear individual selections and select all
+        newSelectedDates.clear();
+        newSelectedDates.add('all');
+      }
+    } else {
+      // If selecting an individual date, remove "all" if present
+      newSelectedDates.delete('all');
+      if (newSelectedDates.has(dateStr)) {
+        // Unchecking an individual date
+        newSelectedDates.delete(dateStr);
+        // If no dates selected, default to "all"
+        if (newSelectedDates.size === 0) {
+          newSelectedDates.add('all');
+        }
+      } else {
+        // Checking an individual date
+        newSelectedDates.add(dateStr);
+      }
+    }
+    selectedDates = newSelectedDates; // Trigger reactivity
+  }
 
   // Get columns for current view (for CSV export - includes breakdown column)
   function getColumnsForCsv() {
@@ -69,7 +172,8 @@
   }
 
   function generateCsv(): string {
-    if (!reportData) return '';
+    const currentReportData = reportData;
+    if (!currentReportData) return '';
 
     const lines: string[] = [];
     const hasBreakdown = 
@@ -83,7 +187,7 @@
 
     // Generate rows using column definitions
     if (primaryDimension === 'ticketType') {
-      for (const row of reportData.rows) {
+      for (const row of currentReportData.rows) {
         if (hasBreakdown && row.gatewayBreakdown && row.gatewayBreakdown.length > 0) {
           // Include breakdown rows
           for (const gatewayRow of row.gatewayBreakdown) {
@@ -108,8 +212,8 @@
           lines.push(csvRow.join(','));
         }
       }
-    } else if (reportData.gatewayRows) {
-      for (const row of reportData.gatewayRows) {
+    } else if (currentReportData.gatewayRows) {
+      for (const row of currentReportData.gatewayRows) {
         if (hasBreakdown && row.ticketTypeBreakdown && row.ticketTypeBreakdown.length > 0) {
           // Include breakdown rows
           for (const ticketTypeRow of row.ticketTypeBreakdown) {
@@ -148,7 +252,8 @@
     const url = URL.createObjectURL(blob);
     
     link.setAttribute('href', url);
-    link.setAttribute('download', `${reportData?.eventName || 'report'}_${new Date().toISOString().split('T')[0]}.csv`);
+    const currentReportData = reportData;
+    link.setAttribute('download', `${currentReportData?.eventName || 'report'}_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     
     document.body.appendChild(link);
@@ -198,6 +303,54 @@
     </div>
 
     <div class="mb-4 space-y-3">
+      <div class="border border-gray-300 rounded-md">
+        <button
+          type="button"
+          onclick={() => dateAccordionExpanded = !dateAccordionExpanded}
+          class="flex items-center justify-between w-full text-left p-3 rounded-t-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 {dateAccordionExpanded ? 'rounded-b-none border-b border-gray-300' : 'rounded-b-md'}"
+        >
+          <div class="flex flex-col">
+            <span class="text-sm font-medium text-gray-700">Event date selection</span>
+            <span class="text-xs text-gray-500 mt-0.5">{selectionStatusText}</span>
+          </div>
+          <svg
+            class="w-5 h-5 text-gray-500 transform transition-transform {dateAccordionExpanded ? 'rotate-180' : ''}"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {#if dateAccordionExpanded}
+          <div class="space-y-2 p-3 pt-2 border-t border-gray-200 bg-gray-50 rounded-b-md">
+            <label class="flex items-center">
+              <input
+                type="checkbox"
+                checked={selectedDates.has('all')}
+                onchange={() => handleDateSelection('all')}
+                class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <span class="text-sm font-medium text-gray-700">All dates</span>
+            </label>
+            {#each uniqueDates as dateStr (dateStr)}
+              <label class="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={selectedDates.has(dateStr as string)}
+                  onchange={() => handleDateSelection(dateStr as string)}
+                  disabled={selectedDates.has('all')}
+                  class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <span class="text-sm font-medium text-gray-700 {selectedDates.has('all') ? 'text-gray-400' : ''}">
+                  {formatDateForDisplay(dateStr as string)}
+                </span>
+              </label>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
       <div>
         <label for="primary-dimension" class="block text-sm font-medium text-gray-700 mb-2">
           Primary Dimension
@@ -252,6 +405,8 @@
                   {#if column.description}
                     <div 
                       class="relative inline-block group"
+                      role="button"
+                      tabindex="0"
                       onmouseenter={(e) => {
                         const tooltip = e.currentTarget.querySelector('.tooltip-content') as HTMLDivElement;
                         if (tooltip) {

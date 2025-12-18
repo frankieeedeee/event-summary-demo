@@ -3,6 +3,8 @@
  */
 export const CSV_COLUMNS = {
   EVENT_NAME: 'Event',
+  EVENT_DATE: 'Event date',
+  EVENT_TIME: 'Event time',
   TICKET_TYPE: 'Ticket type',
   PAID: 'Paid',
   GATEWAY: 'Gateway',

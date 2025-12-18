@@ -20,6 +20,20 @@ export async function parseCSVFile(
             const paidStr = row[CSV_COLUMNS.PAID]?.trim() || '0';
             const gateway = row[CSV_COLUMNS.GATEWAY]?.trim() || undefined;
             
+            // Combine event date and time as a string (don't parse as Date)
+            const eventDateStr = row[CSV_COLUMNS.EVENT_DATE]?.trim() || '';
+            const eventTimeStr = row[CSV_COLUMNS.EVENT_TIME]?.trim() || '';
+            let eventDateTime: string | null = null;
+            
+            if (eventDateStr) {
+              // Combine date and time as a single string
+              if (eventTimeStr) {
+                eventDateTime = `${eventDateStr} ${eventTimeStr}`;
+              } else {
+                eventDateTime = eventDateStr;
+              }
+            }
+            
             // Parse numeric values - handle currency formats and numbers
             const parseNumeric = (str: string) => parseFloat(str?.replace(/[^0-9.-]/g, '') || '0') || 0;
             
@@ -41,6 +55,7 @@ export async function parseCSVFile(
             if (eventName && ticketType) {
               rows.push({
                 eventName,
+                eventDateTime,
                 ticketType,
                 paid,
                 status,
