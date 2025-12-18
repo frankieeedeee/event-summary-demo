@@ -3,7 +3,7 @@
   import type { AttendeeRow } from '../lib/types';
   import { storeAttendeeData, loadAttendeeData, clearAttendeeData } from '../lib/storage';
 
-  const DATA_VERSION = 1;
+  const DATA_VERSION = 2;
 
   let {
     onDataParsed,

@@ -19,6 +19,7 @@ export async function parseCSVFile(
             const ticketType = row[CSV_COLUMNS.TICKET_TYPE]?.trim() || '';
             const paidStr = row[CSV_COLUMNS.PAID]?.trim() || '0';
             const gateway = row[CSV_COLUMNS.GATEWAY]?.trim() || undefined;
+            const salesChannel = row[CSV_COLUMNS.SALES_CHANNEL]?.trim() || undefined;
             
             // Combine event date and time as a string (don't parse as Date)
             const eventDateStr = row[CSV_COLUMNS.EVENT_DATE]?.trim() || '';
@@ -60,6 +61,7 @@ export async function parseCSVFile(
                 paid,
                 status,
                 gateway,
+                salesChannel,
                 humanitixPassedOnFees,
                 humanitixAbsorbedFees,
                 amexSurcharge,

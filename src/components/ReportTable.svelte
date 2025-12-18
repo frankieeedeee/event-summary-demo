@@ -3,7 +3,8 @@
   import { getColumnsForView, getColumnsForTable, type ReportColumn } from '../lib/reportColumns';
   import { generateReport } from '../lib/reportGenerator';
 
-  type PrimaryDimension = 'ticketType' | 'gateway';
+  type PrimaryDimension = 'ticketType' | 'gateway' | 'salesChannel';
+  type BreakdownType = 'none' | 'gateway' | 'ticketType' | 'salesChannel';
 
   const { 
     reportData: propReportData,
@@ -16,11 +17,12 @@
   }>();
 
   let primaryDimension = $state<PrimaryDimension>('ticketType');
-  let breakdownByGateway = $state(false);
-  let breakdownByTicketType = $state(false);
+  let breakdownType = $state<BreakdownType>('none');
   let expandedRows = $state(new Set<string>());
   let selectedDates = $state<Set<string>>(new Set(['all']));
   let dateAccordionExpanded = $state(false);
+  let primaryDimensionDropdownOpen = $state(false);
+  let breakdownAccordionExpanded = $state(false);
 
   // Extract unique date/time combinations from all attendees
   const uniqueDates = $derived.by(() => {
@@ -137,17 +139,13 @@
 
   // Get columns for current view (for CSV export - includes breakdown column)
   function getColumnsForCsv() {
-    const hasBreakdown = 
-      (primaryDimension === 'ticketType' && breakdownByGateway) ||
-      (primaryDimension === 'gateway' && breakdownByTicketType);
-    return getColumnsForView(primaryDimension, hasBreakdown);
+    const hasBreakdown = breakdownType !== 'none';
+    return getColumnsForView(primaryDimension, hasBreakdown, breakdownType !== 'none' ? breakdownType : undefined);
   }
 
   // Get columns for table view (excludes breakdown column - it appears as sub-row value)
   function getColumns() {
-    const hasBreakdown = 
-      (primaryDimension === 'ticketType' && breakdownByGateway) ||
-      (primaryDimension === 'gateway' && breakdownByTicketType);
+    const hasBreakdown = breakdownType !== 'none';
     return getColumnsForTable(primaryDimension, hasBreakdown);
   }
 
@@ -197,9 +195,7 @@
     if (!currentReportData) return '';
 
     const lines: string[] = [];
-    const hasBreakdown = 
-      (primaryDimension === 'ticketType' && breakdownByGateway) ||
-      (primaryDimension === 'gateway' && breakdownByTicketType);
+    const hasBreakdown = breakdownType !== 'none';
 
     // Build header using column definitions (for CSV, include breakdown column)
     const currentColumns = getColumnsForCsv();
@@ -209,18 +205,32 @@
     // Generate rows using column definitions
     if (primaryDimension === 'ticketType') {
       for (const row of currentReportData.rows) {
-        if (hasBreakdown && row.gatewayBreakdown && row.gatewayBreakdown.length > 0) {
-          // Include breakdown rows
+        if (hasBreakdown && breakdownType === 'gateway' && row.gatewayBreakdown && row.gatewayBreakdown.length > 0) {
+          // Include gateway breakdown rows
           for (const gatewayRow of row.gatewayBreakdown) {
             const csvRow: string[] = [];
             for (const column of currentColumns) {
-              // For breakdown rows, we need to handle the primary dimension and breakdown dimension separately
               if (column.id === 'ticketType') {
                 csvRow.push(escapeCsvField(formatColumnValueForCsv(column, row)));
               } else if (column.id === 'gateway') {
                 csvRow.push(escapeCsvField(formatColumnValueForCsv(column, gatewayRow)));
               } else {
                 csvRow.push(escapeCsvField(formatColumnValueForCsv(column, gatewayRow)));
+              }
+            }
+            lines.push(csvRow.join(','));
+          }
+        } else if (hasBreakdown && breakdownType === 'salesChannel' && row.salesChannelBreakdown && row.salesChannelBreakdown.length > 0) {
+          // Include sales channel breakdown rows
+          for (const salesChannelRow of row.salesChannelBreakdown) {
+            const csvRow: string[] = [];
+            for (const column of currentColumns) {
+              if (column.id === 'ticketType') {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, row)));
+              } else if (column.id === 'salesChannel') {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, salesChannelRow)));
+              } else {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, salesChannelRow)));
               }
             }
             lines.push(csvRow.join(','));
@@ -233,20 +243,74 @@
           lines.push(csvRow.join(','));
         }
       }
-    } else if (currentReportData.gatewayRows) {
+    } else if (primaryDimension === 'gateway' && currentReportData.gatewayRows) {
       for (const row of currentReportData.gatewayRows) {
-        if (hasBreakdown && row.ticketTypeBreakdown && row.ticketTypeBreakdown.length > 0) {
-          // Include breakdown rows
+        if (hasBreakdown && breakdownType === 'ticketType' && row.ticketTypeBreakdown && row.ticketTypeBreakdown.length > 0) {
+          // Include ticket type breakdown rows
           for (const ticketTypeRow of row.ticketTypeBreakdown) {
             const csvRow: string[] = [];
             for (const column of currentColumns) {
-              // For breakdown rows, we need to handle the primary dimension and breakdown dimension separately
               if (column.id === 'gateway') {
                 csvRow.push(escapeCsvField(formatColumnValueForCsv(column, row)));
               } else if (column.id === 'ticketType') {
                 csvRow.push(escapeCsvField(formatColumnValueForCsv(column, ticketTypeRow)));
               } else {
                 csvRow.push(escapeCsvField(formatColumnValueForCsv(column, ticketTypeRow)));
+              }
+            }
+            lines.push(csvRow.join(','));
+          }
+        } else if (hasBreakdown && breakdownType === 'salesChannel' && row.salesChannelBreakdown && row.salesChannelBreakdown.length > 0) {
+          // Include sales channel breakdown rows
+          for (const salesChannelRow of row.salesChannelBreakdown) {
+            const csvRow: string[] = [];
+            for (const column of currentColumns) {
+              if (column.id === 'gateway') {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, row)));
+              } else if (column.id === 'salesChannel') {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, salesChannelRow)));
+              } else {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, salesChannelRow)));
+              }
+            }
+            lines.push(csvRow.join(','));
+          }
+        } else {
+          // Just the summary row
+          const csvRow = currentColumns.map(col => 
+            escapeCsvField(formatColumnValueForCsv(col, row))
+          );
+          lines.push(csvRow.join(','));
+        }
+      }
+    } else if (primaryDimension === 'salesChannel' && currentReportData.salesChannelRows) {
+      for (const row of currentReportData.salesChannelRows) {
+        if (hasBreakdown && breakdownType === 'ticketType' && row.ticketTypeBreakdown && row.ticketTypeBreakdown.length > 0) {
+          // Include ticket type breakdown rows
+          for (const ticketTypeRow of row.ticketTypeBreakdown) {
+            const csvRow: string[] = [];
+            for (const column of currentColumns) {
+              if (column.id === 'salesChannel') {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, row)));
+              } else if (column.id === 'ticketType') {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, ticketTypeRow)));
+              } else {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, ticketTypeRow)));
+              }
+            }
+            lines.push(csvRow.join(','));
+          }
+        } else if (hasBreakdown && breakdownType === 'gateway' && row.gatewayBreakdown && row.gatewayBreakdown.length > 0) {
+          // Include gateway breakdown rows
+          for (const gatewayRow of row.gatewayBreakdown) {
+            const csvRow: string[] = [];
+            for (const column of currentColumns) {
+              if (column.id === 'salesChannel') {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, row)));
+              } else if (column.id === 'gateway') {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, gatewayRow)));
+              } else {
+                csvRow.push(escapeCsvField(formatColumnValueForCsv(column, gatewayRow)));
               }
             }
             lines.push(csvRow.join(','));
@@ -284,15 +348,16 @@
     URL.revokeObjectURL(url);
   }
 
-  // When primary dimension changes, disable and uncheck the corresponding breakdown, and clear expanded rows
+  // When primary dimension changes, reset breakdown and clear expanded rows
   $effect(() => {
-    if (primaryDimension === 'ticketType') {
-      breakdownByTicketType = false;
-      expandedRows = new Set();
-    } else {
-      breakdownByGateway = false;
-      expandedRows = new Set();
+    if (primaryDimension === 'ticketType' && breakdownType === 'ticketType') {
+      breakdownType = 'none';
+    } else if (primaryDimension === 'gateway' && breakdownType === 'gateway') {
+      breakdownType = 'none';
+    } else if (primaryDimension === 'salesChannel' && breakdownType === 'salesChannel') {
+      breakdownType = 'none';
     }
+    expandedRows = new Set();
   });
 </script>
 
@@ -372,44 +437,169 @@
         {/if}
       </div>
 
-      <div>
-        <label for="primary-dimension" class="block text-sm font-medium text-gray-700 mb-2">
-          Primary Dimension
-        </label>
-        <select
-          id="primary-dimension"
-          bind:value={primaryDimension}
-          class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+      <div class="border border-gray-300 rounded-md">
+        <button
+          type="button"
+          onclick={() => primaryDimensionDropdownOpen = !primaryDimensionDropdownOpen}
+          class="flex items-center justify-between w-full text-left p-3 rounded-t-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 {primaryDimensionDropdownOpen ? 'rounded-b-none border-b border-gray-300' : 'rounded-b-md'}"
         >
-          <option value="ticketType">By ticket type</option>
-          <option value="gateway">By gateway</option>
-        </select>
+          <div class="flex flex-col">
+            <span class="text-sm font-medium text-gray-700">Primary Dimension</span>
+            <span class="text-xs text-gray-500 mt-0.5">
+              {primaryDimension === 'ticketType' ? 'By ticket type' : primaryDimension === 'gateway' ? 'By gateway' : 'By sales channel'}
+            </span>
+          </div>
+          <svg
+            class="w-5 h-5 text-gray-500 transform transition-transform {primaryDimensionDropdownOpen ? 'rotate-180' : ''}"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {#if primaryDimensionDropdownOpen}
+          <div class="space-y-2 p-3 pt-2 border-t border-gray-200 bg-gray-50 rounded-b-md">
+            <label class="flex items-center">
+              <input
+                type="radio"
+                name="primary-dimension"
+                value="ticketType"
+                checked={primaryDimension === 'ticketType'}
+                onchange={() => { primaryDimension = 'ticketType'; primaryDimensionDropdownOpen = false; }}
+                class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+              />
+              <span class="text-sm font-medium text-gray-700">By ticket type</span>
+            </label>
+            <label class="flex items-center">
+              <input
+                type="radio"
+                name="primary-dimension"
+                value="gateway"
+                checked={primaryDimension === 'gateway'}
+                onchange={() => { primaryDimension = 'gateway'; primaryDimensionDropdownOpen = false; }}
+                class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+              />
+              <span class="text-sm font-medium text-gray-700">By gateway</span>
+            </label>
+            <label class="flex items-center">
+              <input
+                type="radio"
+                name="primary-dimension"
+                value="salesChannel"
+                checked={primaryDimension === 'salesChannel'}
+                onchange={() => { primaryDimension = 'salesChannel'; primaryDimensionDropdownOpen = false; }}
+                class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+              />
+              <span class="text-sm font-medium text-gray-700">By sales channel</span>
+            </label>
+          </div>
+        {/if}
       </div>
 
-      <div class="space-y-2">
-        <label class="flex items-center">
-          <input
-            type="checkbox"
-            bind:checked={breakdownByGateway}
-            disabled={primaryDimension === 'gateway'}
-            class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <span class="text-sm font-medium text-gray-700 {primaryDimension === 'gateway' ? 'text-gray-400' : ''}">
-            Breakdown by gateway
-          </span>
-        </label>
-
-        <label class="flex items-center">
-          <input
-            type="checkbox"
-            bind:checked={breakdownByTicketType}
-            disabled={primaryDimension === 'ticketType'}
-            class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <span class="text-sm font-medium text-gray-700 {primaryDimension === 'ticketType' ? 'text-gray-400' : ''}">
-            Breakdown by ticket type
-          </span>
-        </label>
+      <div class="border border-gray-300 rounded-md">
+        <button
+          type="button"
+          onclick={() => breakdownAccordionExpanded = !breakdownAccordionExpanded}
+          class="flex items-center justify-between w-full text-left p-3 rounded-t-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 {breakdownAccordionExpanded ? 'rounded-b-none border-b border-gray-300' : 'rounded-b-md'}"
+        >
+          <div class="flex flex-col">
+            <span class="text-sm font-medium text-gray-700">Breakdown</span>
+          </div>
+          <svg
+            class="w-5 h-5 text-gray-500 transform transition-transform {breakdownAccordionExpanded ? 'rotate-180' : ''}"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {#if breakdownAccordionExpanded}
+          <div class="space-y-2 p-3 pt-2 border-t border-gray-200 bg-gray-50 rounded-b-md">
+            <label class="flex items-center">
+              <input
+                type="radio"
+                name="breakdown"
+                value="none"
+                checked={breakdownType === 'none'}
+                onchange={() => breakdownType = 'none'}
+                class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+              />
+              <span class="text-sm font-medium text-gray-700">None</span>
+            </label>
+            {#if primaryDimension === 'ticketType'}
+              <label class="flex items-center">
+                <input
+                  type="radio"
+                  name="breakdown"
+                  value="gateway"
+                  checked={breakdownType === 'gateway'}
+                  onchange={() => breakdownType = 'gateway'}
+                  class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span class="text-sm font-medium text-gray-700">Breakdown by gateway</span>
+              </label>
+              <label class="flex items-center">
+                <input
+                  type="radio"
+                  name="breakdown"
+                  value="salesChannel"
+                  checked={breakdownType === 'salesChannel'}
+                  onchange={() => breakdownType = 'salesChannel'}
+                  class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span class="text-sm font-medium text-gray-700">Breakdown by sales channel</span>
+              </label>
+            {:else if primaryDimension === 'gateway'}
+              <label class="flex items-center">
+                <input
+                  type="radio"
+                  name="breakdown"
+                  value="ticketType"
+                  checked={breakdownType === 'ticketType'}
+                  onchange={() => breakdownType = 'ticketType'}
+                  class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span class="text-sm font-medium text-gray-700">Breakdown by ticket type</span>
+              </label>
+              <label class="flex items-center">
+                <input
+                  type="radio"
+                  name="breakdown"
+                  value="salesChannel"
+                  checked={breakdownType === 'salesChannel'}
+                  onchange={() => breakdownType = 'salesChannel'}
+                  class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span class="text-sm font-medium text-gray-700">Breakdown by sales channel</span>
+              </label>
+            {:else if primaryDimension === 'salesChannel'}
+              <label class="flex items-center">
+                <input
+                  type="radio"
+                  name="breakdown"
+                  value="ticketType"
+                  checked={breakdownType === 'ticketType'}
+                  onchange={() => breakdownType = 'ticketType'}
+                  class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span class="text-sm font-medium text-gray-700">Breakdown by ticket type</span>
+              </label>
+              <label class="flex items-center">
+                <input
+                  type="radio"
+                  name="breakdown"
+                  value="gateway"
+                  checked={breakdownType === 'gateway'}
+                  onchange={() => breakdownType = 'gateway'}
+                  class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span class="text-sm font-medium text-gray-700">Breakdown by gateway</span>
+              </label>
+            {/if}
+          </div>
+        {/if}
       </div>
     </div>
 
@@ -477,7 +667,20 @@
                   <td class="px-6 py-4 whitespace-nowrap text-sm {colIndex === 0 ? 'font-medium text-gray-900' : 'text-gray-700'}">
                     {#if colIndex === 0}
                       <div class="flex items-center">
-                        {#if breakdownByGateway && row.gatewayBreakdown && row.gatewayBreakdown.length > 0}
+                        {#if breakdownType === 'gateway' && row.gatewayBreakdown && row.gatewayBreakdown.length > 0}
+                          <button
+                            type="button"
+                            onclick={() => toggleRow(row.ticketType)}
+                            class="mr-2 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            aria-label={expandedRows.has(row.ticketType) ? 'Collapse' : 'Expand'}
+                          >
+                            {#if expandedRows.has(row.ticketType)}
+                              <span class="text-lg font-semibold">−</span>
+                            {:else}
+                              <span class="text-lg font-semibold">+</span>
+                            {/if}
+                          </button>
+                        {:else if breakdownType === 'salesChannel' && row.salesChannelBreakdown && row.salesChannelBreakdown.length > 0}
                           <button
                             type="button"
                             onclick={() => toggleRow(row.ticketType)}
@@ -499,7 +702,7 @@
                   </td>
                 {/each}
               </tr>
-              {#if breakdownByGateway && row.gatewayBreakdown && row.gatewayBreakdown.length > 0 && expandedRows.has(row.ticketType)}
+              {#if breakdownType === 'gateway' && row.gatewayBreakdown && row.gatewayBreakdown.length > 0 && expandedRows.has(row.ticketType)}
                 {#each row.gatewayBreakdown as gatewayRow}
                   <tr class="bg-gray-50 hover:bg-gray-100">
                     {#each getColumns() as column, colIndex}
@@ -508,6 +711,20 @@
                           <span class="ml-2">{gatewayRow.gateway}</span>
                         {:else}
                           {formatColumnValue(column, gatewayRow)}
+                        {/if}
+                      </td>
+                    {/each}
+                  </tr>
+                {/each}
+              {:else if breakdownType === 'salesChannel' && row.salesChannelBreakdown && row.salesChannelBreakdown.length > 0 && expandedRows.has(row.ticketType)}
+                {#each row.salesChannelBreakdown as salesChannelRow}
+                  <tr class="bg-gray-50 hover:bg-gray-100">
+                    {#each getColumns() as column, colIndex}
+                      <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-600 {colIndex === 0 ? 'pl-12' : ''}">
+                        {#if colIndex === 0}
+                          <span class="ml-2">{salesChannelRow.salesChannel}</span>
+                        {:else}
+                          {formatColumnValue(column, salesChannelRow)}
                         {/if}
                       </td>
                     {/each}
@@ -522,7 +739,20 @@
                   <td class="px-6 py-4 whitespace-nowrap text-sm {colIndex === 0 ? 'font-medium text-gray-900' : 'text-gray-700'}">
                     {#if colIndex === 0}
                       <div class="flex items-center">
-                        {#if breakdownByTicketType && row.ticketTypeBreakdown && row.ticketTypeBreakdown.length > 0}
+                        {#if breakdownType === 'ticketType' && row.ticketTypeBreakdown && row.ticketTypeBreakdown.length > 0}
+                          <button
+                            type="button"
+                            onclick={() => toggleRow(row.gateway)}
+                            class="mr-2 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            aria-label={expandedRows.has(row.gateway) ? 'Collapse' : 'Expand'}
+                          >
+                            {#if expandedRows.has(row.gateway)}
+                              <span class="text-lg font-semibold">−</span>
+                            {:else}
+                              <span class="text-lg font-semibold">+</span>
+                            {/if}
+                          </button>
+                        {:else if breakdownType === 'salesChannel' && row.salesChannelBreakdown && row.salesChannelBreakdown.length > 0}
                           <button
                             type="button"
                             onclick={() => toggleRow(row.gateway)}
@@ -544,7 +774,7 @@
                   </td>
                 {/each}
               </tr>
-              {#if breakdownByTicketType && row.ticketTypeBreakdown && row.ticketTypeBreakdown.length > 0 && expandedRows.has(row.gateway)}
+              {#if breakdownType === 'ticketType' && row.ticketTypeBreakdown && row.ticketTypeBreakdown.length > 0 && expandedRows.has(row.gateway)}
                 {#each row.ticketTypeBreakdown as ticketTypeRow}
                   <tr class="bg-gray-50 hover:bg-gray-100">
                     {#each getColumns() as column, colIndex}
@@ -553,6 +783,92 @@
                           <span class="ml-2">{ticketTypeRow.ticketType}</span>
                         {:else}
                           {formatColumnValue(column, ticketTypeRow)}
+                        {/if}
+                      </td>
+                    {/each}
+                  </tr>
+                {/each}
+              {:else if breakdownType === 'salesChannel' && row.salesChannelBreakdown && row.salesChannelBreakdown.length > 0 && expandedRows.has(row.gateway)}
+                {#each row.salesChannelBreakdown as salesChannelRow}
+                  <tr class="bg-gray-50 hover:bg-gray-100">
+                    {#each getColumns() as column, colIndex}
+                      <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-600 {colIndex === 0 ? 'pl-12' : ''}">
+                        {#if colIndex === 0}
+                          <span class="ml-2">{salesChannelRow.salesChannel}</span>
+                        {:else}
+                          {formatColumnValue(column, salesChannelRow)}
+                        {/if}
+                      </td>
+                    {/each}
+                  </tr>
+                {/each}
+              {/if}
+            {/each}
+          {:else if primaryDimension === 'salesChannel' && reportData.salesChannelRows}
+            {#each reportData.salesChannelRows as row}
+              <tr class="hover:bg-gray-50">
+                {#each getColumns() as column, colIndex}
+                  <td class="px-6 py-4 whitespace-nowrap text-sm {colIndex === 0 ? 'font-medium text-gray-900' : 'text-gray-700'}">
+                    {#if colIndex === 0}
+                      <div class="flex items-center">
+                        {#if breakdownType === 'ticketType' && row.ticketTypeBreakdown && row.ticketTypeBreakdown.length > 0}
+                          <button
+                            type="button"
+                            onclick={() => toggleRow(row.salesChannel)}
+                            class="mr-2 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            aria-label={expandedRows.has(row.salesChannel) ? 'Collapse' : 'Expand'}
+                          >
+                            {#if expandedRows.has(row.salesChannel)}
+                              <span class="text-lg font-semibold">−</span>
+                            {:else}
+                              <span class="text-lg font-semibold">+</span>
+                            {/if}
+                          </button>
+                        {:else if breakdownType === 'gateway' && row.gatewayBreakdown && row.gatewayBreakdown.length > 0}
+                          <button
+                            type="button"
+                            onclick={() => toggleRow(row.salesChannel)}
+                            class="mr-2 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            aria-label={expandedRows.has(row.salesChannel) ? 'Collapse' : 'Expand'}
+                          >
+                            {#if expandedRows.has(row.salesChannel)}
+                              <span class="text-lg font-semibold">−</span>
+                            {:else}
+                              <span class="text-lg font-semibold">+</span>
+                            {/if}
+                          </button>
+                        {/if}
+                        <span>{formatColumnValue(column, row)}</span>
+                      </div>
+                    {:else}
+                      {formatColumnValue(column, row)}
+                    {/if}
+                  </td>
+                {/each}
+              </tr>
+              {#if breakdownType === 'ticketType' && row.ticketTypeBreakdown && row.ticketTypeBreakdown.length > 0 && expandedRows.has(row.salesChannel)}
+                {#each row.ticketTypeBreakdown as ticketTypeRow}
+                  <tr class="bg-gray-50 hover:bg-gray-100">
+                    {#each getColumns() as column, colIndex}
+                      <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-600 {colIndex === 0 ? 'pl-12' : ''}">
+                        {#if colIndex === 0}
+                          <span class="ml-2">{ticketTypeRow.ticketType}</span>
+                        {:else}
+                          {formatColumnValue(column, ticketTypeRow)}
+                        {/if}
+                      </td>
+                    {/each}
+                  </tr>
+                {/each}
+              {:else if breakdownType === 'gateway' && row.gatewayBreakdown && row.gatewayBreakdown.length > 0 && expandedRows.has(row.salesChannel)}
+                {#each row.gatewayBreakdown as gatewayRow}
+                  <tr class="bg-gray-50 hover:bg-gray-100">
+                    {#each getColumns() as column, colIndex}
+                      <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-600 {colIndex === 0 ? 'pl-12' : ''}">
+                        {#if colIndex === 0}
+                          <span class="ml-2">{gatewayRow.gateway}</span>
+                        {:else}
+                          {formatColumnValue(column, gatewayRow)}
                         {/if}
                       </td>
                     {/each}

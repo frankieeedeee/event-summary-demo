@@ -1,4 +1,4 @@
-import type { ReportRow, GatewayReportRow, GatewayBreakdownRow, TicketTypeBreakdownRow } from './types';
+import type { ReportRow, GatewayReportRow, GatewayBreakdownRow, TicketTypeBreakdownRow, SalesChannelReportRow, SalesChannelBreakdownRow } from './types';
 
 export type ColumnValueFormatter = (value: any) => string;
 export type ColumnValueExtractor<T = any> = (row: T) => any;
@@ -27,6 +27,13 @@ export const GATEWAY_COLUMN: ReportColumn<GatewayReportRow> = {
   extractValue: (row) => row.gateway,
 };
 
+export const SALES_CHANNEL_COLUMN: ReportColumn<SalesChannelReportRow> = {
+  id: 'salesChannel',
+  label: 'Sales Channel',
+  description: 'The sales channel through which the ticket was sold',
+  extractValue: (row) => row.salesChannel,
+};
+
 // Breakdown dimension columns
 export const GATEWAY_BREAKDOWN_COLUMN: ReportColumn<GatewayBreakdownRow> = {
   id: 'gateway',
@@ -42,8 +49,15 @@ export const TICKET_TYPE_BREAKDOWN_COLUMN: ReportColumn<TicketTypeBreakdownRow> 
   extractValue: (row) => row.ticketType,
 };
 
+export const SALES_CHANNEL_BREAKDOWN_COLUMN: ReportColumn<SalesChannelBreakdownRow> = {
+  id: 'salesChannel',
+  label: 'Sales Channel',
+  description: 'The sales channel through which the ticket was sold',
+  extractValue: (row) => row.salesChannel,
+};
+
 // Data columns - these are the metrics/measures
-export const PAID_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const PAID_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'totalPaid',
   label: 'Paid',
   description: 'The gross amount paid by the customer, including all fees and surcharges',
@@ -57,14 +71,14 @@ export const PAID_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBre
   csvFormatValue: (value: number) => value.toFixed(2),
 };
 
-export const VALID_TICKETS_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const VALID_TICKETS_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'validCount',
   label: 'Valid Tickets',
   description: 'The number of valid tickets currently issued for this event',
   extractValue: (row) => row.validCount,
 };
 
-export const CANCELLED_TICKETS_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const CANCELLED_TICKETS_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'cancelledCount',
   label: 'Cancelled Tickets',
   description: 'The number of tickets that have been cancelled, either due to refunds, resales or ticket swaps',
@@ -81,7 +95,7 @@ const currencyFormatter = (value: number) => {
 
 const currencyCsvFormatter = (value: number) => value.toFixed(2);
 
-export const HUMANITIX_PASSED_ON_FEES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const HUMANITIX_PASSED_ON_FEES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'humanitixPassedOnFees',
   label: 'Humanitix passed-on fees',
   description: 'The total booking fee amount passed-on to customers',
@@ -90,7 +104,7 @@ export const HUMANITIX_PASSED_ON_FEES_COLUMN: ReportColumn<ReportRow | GatewayRe
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const HUMANITIX_ABSORBED_FEES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const HUMANITIX_ABSORBED_FEES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'humanitixAbsorbedFees',
   label: 'Humanitix absorbed fees',
   description: 'The total booking amount absorbed within the price of the ticket',
@@ -99,7 +113,7 @@ export const HUMANITIX_ABSORBED_FEES_COLUMN: ReportColumn<ReportRow | GatewayRep
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const AMEX_SURCHARGE_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const AMEX_SURCHARGE_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'amexSurcharge',
   label: 'Amex surcharge',
   description: 'The total Amex Credit Card surchage passed-on and paid by customers',
@@ -108,7 +122,7 @@ export const AMEX_SURCHARGE_COLUMN: ReportColumn<ReportRow | GatewayReportRow | 
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const CUSTOM_TAX_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const CUSTOM_TAX_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'customTax',
   label: 'Custom tax',
   description: 'Any additional custom sales tax, passed-on and paid by customers, and received by you',
@@ -117,7 +131,7 @@ export const CUSTOM_TAX_COLUMN: ReportColumn<ReportRow | GatewayReportRow | Gate
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const ZIP_FEE_ABSORBED_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const ZIP_FEE_ABSORBED_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'zipFeeAbsorbed',
   label: 'Zip fee(absorbed)',
   description: 'Any Zip payment fees, deducted from ticket sales',
@@ -126,7 +140,7 @@ export const ZIP_FEE_ABSORBED_COLUMN: ReportColumn<ReportRow | GatewayReportRow 
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const AFTERPAY_FEE_ABSORBED_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const AFTERPAY_FEE_ABSORBED_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'afterpayFeeAbsorbed',
   label: 'Afterpay fee(absorbed)',
   description: 'Any Afterpay payment fees, deducted from ticket sales',
@@ -135,7 +149,7 @@ export const AFTERPAY_FEE_ABSORBED_COLUMN: ReportColumn<ReportRow | GatewayRepor
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const REFUNDS_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const REFUNDS_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'refunds',
   label: 'Refunds',
   description: 'The total amount of refunds issued to customers, excluding any refunded passed-on fees',
@@ -144,7 +158,7 @@ export const REFUNDS_COLUMN: ReportColumn<ReportRow | GatewayReportRow | Gateway
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const FEE_REBATE_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const FEE_REBATE_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'feeRebate',
   label: 'Fee rebate',
   description: 'The total amount of fee rebate revenue, paid by customers',
@@ -153,7 +167,7 @@ export const FEE_REBATE_COLUMN: ReportColumn<ReportRow | GatewayReportRow | Gate
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const YOUR_EARNINGS_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const YOUR_EARNINGS_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'yourEarnings',
   label: 'Your earnings',
   description: 'The total amount of revenue you have earnt so far',
@@ -162,7 +176,7 @@ export const YOUR_EARNINGS_COLUMN: ReportColumn<ReportRow | GatewayReportRow | G
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const REFUNDED_FEES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const REFUNDED_FEES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'refundedFees',
   label: 'Refunded fees',
   description: 'The total amount of passed-on fees refunded and returned to customers',
@@ -171,7 +185,7 @@ export const REFUNDED_FEES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | G
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const DISCOUNT_REDEEMED_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const DISCOUNT_REDEEMED_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'discountRedeemed',
   label: 'Discount redeemed',
   description: 'The total amount of discounts redeemed and deducted from the ticket price',
@@ -180,7 +194,7 @@ export const DISCOUNT_REDEEMED_COLUMN: ReportColumn<ReportRow | GatewayReportRow
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const TAX_ON_SALES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const TAX_ON_SALES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'taxOnSales',
   label: 'Tax on sales',
   description: 'The total amount of taxes charged on ticket sales, paid by customers and collected by Humanitix',
@@ -189,7 +203,7 @@ export const TAX_ON_SALES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | Ga
   csvFormatValue: currencyCsvFormatter,
 };
 
-export const TAX_ON_BOOKING_FEES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow> = {
+export const TAX_ON_BOOKING_FEES_COLUMN: ReportColumn<ReportRow | GatewayReportRow | SalesChannelReportRow | GatewayBreakdownRow | TicketTypeBreakdownRow | SalesChannelBreakdownRow> = {
   id: 'taxOnBookingFees',
   label: 'Tax on booking fees',
   description: 'The total amount of taxes charged on Humanitix\'s booking fees',
@@ -200,24 +214,29 @@ export const TAX_ON_BOOKING_FEES_COLUMN: ReportColumn<ReportRow | GatewayReportR
 
 // Column configuration for different views
 export function getColumnsForView(
-  primaryDimension: 'ticketType' | 'gateway',
-  hasBreakdown: boolean
+  primaryDimension: 'ticketType' | 'gateway' | 'salesChannel',
+  hasBreakdown: boolean,
+  breakdownType?: 'gateway' | 'ticketType' | 'salesChannel'
 ): ReportColumn[] {
   const columns: ReportColumn[] = [];
 
   // Primary dimension column
   if (primaryDimension === 'ticketType') {
     columns.push(TICKET_TYPE_COLUMN);
-  } else {
+  } else if (primaryDimension === 'gateway') {
     columns.push(GATEWAY_COLUMN);
+  } else {
+    columns.push(SALES_CHANNEL_COLUMN);
   }
 
   // Breakdown column (if active)
   if (hasBreakdown) {
-    if (primaryDimension === 'ticketType') {
+    if (breakdownType === 'gateway') {
       columns.push(GATEWAY_BREAKDOWN_COLUMN);
-    } else {
+    } else if (breakdownType === 'ticketType') {
       columns.push(TICKET_TYPE_BREAKDOWN_COLUMN);
+    } else if (breakdownType === 'salesChannel') {
+      columns.push(SALES_CHANNEL_BREAKDOWN_COLUMN);
     }
   }
 
@@ -246,7 +265,7 @@ export function getColumnsForView(
 
 // Column configuration for table view (excludes breakdown column from header)
 export function getColumnsForTable(
-  primaryDimension: 'ticketType' | 'gateway',
+  primaryDimension: 'ticketType' | 'gateway' | 'salesChannel',
   hasBreakdown: boolean
 ): ReportColumn[] {
   const columns: ReportColumn[] = [];
@@ -254,8 +273,10 @@ export function getColumnsForTable(
   // Primary dimension column
   if (primaryDimension === 'ticketType') {
     columns.push(TICKET_TYPE_COLUMN);
-  } else {
+  } else if (primaryDimension === 'gateway') {
     columns.push(GATEWAY_COLUMN);
+  } else {
+    columns.push(SALES_CHANNEL_COLUMN);
   }
 
   // Note: Breakdown column is NOT included here - it appears as sub-row value in UI

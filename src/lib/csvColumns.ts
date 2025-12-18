@@ -8,6 +8,7 @@ export const CSV_COLUMNS = {
   TICKET_TYPE: 'Ticket type',
   PAID: 'Paid',
   GATEWAY: 'Gateway',
+  SALES_CHANNEL: 'Sales Channel',
   HUMANITIX_PASSED_ON_FEES: 'Humanitix passed-on fees',
   HUMANITIX_ABSORBED_FEES: 'Humanitix absorbed fees',
   AMEX_SURCHARGE: 'Amex surcharge',
