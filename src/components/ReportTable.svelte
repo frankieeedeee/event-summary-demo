@@ -165,20 +165,17 @@
 {#if reportData}
   <div class="bg-white rounded-lg shadow-md p-6">
     <div class="flex justify-between items-start mb-4">
-      <div>
-        <h2 class="text-2xl font-bold text-gray-900 mb-2">
-          Ticket sales summary report
-        </h2>
-        <p class="text-lg text-gray-700">{reportData.eventName}</p>
-      </div>
+      <h2 class="text-2xl font-bold text-gray-900">
+        Ticket sales summary report
+      </h2>
       <button
         type="button"
         onclick={downloadCsv}
-        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors flex items-center gap-2"
+        class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors flex items-center gap-1.5"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          class="h-5 w-5"
+          class="h-4 w-4"
           viewBox="0 0 20 20"
           fill="currentColor"
         >
@@ -242,7 +239,48 @@
               <th
                 class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
-                {column.label}
+                <div class="flex items-center gap-1">
+                  <span>{column.label}</span>
+                  {#if column.description}
+                    <div 
+                      class="relative inline-block group"
+                      onmouseenter={(e) => {
+                        const tooltip = e.currentTarget.querySelector('.tooltip-content') as HTMLDivElement;
+                        if (tooltip) {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          tooltip.style.left = `${rect.left + rect.width / 2}px`;
+                          tooltip.style.top = `${rect.top - 8}px`;
+                        }
+                      }}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 text-gray-400 cursor-help hover:text-gray-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <div
+                        class="tooltip-content fixed opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-200 z-50 w-64 p-2 text-xs text-white bg-gray-900 rounded shadow-lg pointer-events-none whitespace-normal"
+                        style="transform: translateX(-50%) translateY(-100%);"
+                      >
+                        {column.description}
+                        <div
+                          class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1"
+                        >
+                          <div class="border-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                    </div>
+                  {/if}
+                </div>
               </th>
             {/each}
           </tr>

@@ -22,6 +22,8 @@
   let error = $state<string | null>(null);
   let processing = $state(false);
   let uploadPanelExpanded = $state(true);
+  let validAttendees = $state<AttendeeRow[]>([]);
+  let cancelledAttendees = $state<AttendeeRow[]>([]);
 
   // Load from session storage on mount
   $effect(() => {
@@ -36,6 +38,8 @@
             sessionStorage.removeItem(SESSION_STORAGE_KEY);
           } else if (parsed.validAttendees && parsed.cancelledAttendees) {
             // Call callback with stored data
+            validAttendees = parsed.validAttendees;
+            cancelledAttendees = parsed.cancelledAttendees;
             onDataParsed?.({
               validAttendees: parsed.validAttendees,
               cancelledAttendees: parsed.cancelledAttendees,
@@ -77,11 +81,11 @@
     error = null;
 
     try {
-      const validAttendees = await parseCSVFile(validFile, 'Valid');
-      const cancelledAttendees = await parseCSVFile(cancelledFile, 'Cancelled');
+      const parsedValidAttendees = await parseCSVFile(validFile, 'Valid');
+      const parsedCancelledAttendees = await parseCSVFile(cancelledFile, 'Cancelled');
 
       // Combine both CSVs
-      const combinedAttendees = [...validAttendees, ...cancelledAttendees];
+      const combinedAttendees = [...parsedValidAttendees, ...parsedCancelledAttendees];
 
       // Log first 100 rows of combined result
       console.log('Combined CSV result (first 100 rows):', combinedAttendees.slice(0, 100));
@@ -90,16 +94,20 @@
       if (typeof window !== 'undefined') {
         const storedData: StoredData = {
           version: DATA_VERSION,
-          validAttendees,
-          cancelledAttendees,
+          validAttendees: parsedValidAttendees,
+          cancelledAttendees: parsedCancelledAttendees,
         };
         sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(storedData));
       }
 
+      // Store attendees for display
+      validAttendees = parsedValidAttendees;
+      cancelledAttendees = parsedCancelledAttendees;
+
       // Call callback with parsed data
       onDataParsed?.({
-        validAttendees,
-        cancelledAttendees,
+        validAttendees: parsedValidAttendees,
+        cancelledAttendees: parsedCancelledAttendees,
       });
 
       // Collapse upload panel
@@ -116,17 +124,27 @@
     validFile = null;
     cancelledFile = null;
     error = null;
+    validAttendees = [];
+    cancelledAttendees = [];
     // Clear session storage when starting new upload
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
     }
   }
+
+  let eventName = $derived(
+    validAttendees.length > 0
+      ? validAttendees[0].eventName
+      : cancelledAttendees.length > 0
+        ? cancelledAttendees[0].eventName
+        : ''
+  );
 </script>
 
 <div class="bg-white rounded-lg shadow-md p-6 mb-6">
   <div class="flex items-center justify-between mb-4">
     <h2 class="text-xl font-semibold text-gray-800">
-      Upload CSV Files
+      Upload Event Data
       {#if !uploadPanelExpanded}
         <span class="ml-2 text-sm font-normal text-green-600">Done</span>
       {/if}
@@ -141,6 +159,30 @@
       </button>
     {/if}
   </div>
+
+  {#if !uploadPanelExpanded && (validAttendees.length > 0 || cancelledAttendees.length > 0)}
+    <div class="mt-4">
+      <h3 class="text-sm font-semibold text-gray-800 mb-2">
+        Detected event information
+      </h3>
+      <div class="space-y-1">
+        {#if eventName}
+          <div>
+            <span class="text-sm font-medium text-gray-700">Event Name:</span>
+            <span class="ml-2 text-sm text-gray-900">{eventName}</span>
+          </div>
+        {/if}
+        <div>
+          <span class="text-sm font-medium text-gray-700">Valid Tickets:</span>
+          <span class="ml-2 text-sm text-gray-900">{validAttendees.length}</span>
+        </div>
+        <div>
+          <span class="text-sm font-medium text-gray-700">Cancelled Tickets:</span>
+          <span class="ml-2 text-sm text-gray-900">{cancelledAttendees.length}</span>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   {#if uploadPanelExpanded}
     <div class="space-y-4">
