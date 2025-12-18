@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ReportData } from '../lib/types';
-  import { getColumnsForView, type ReportColumn } from '../lib/reportColumns';
+  import { getColumnsForView, getColumnsForTable, type ReportColumn } from '../lib/reportColumns';
 
   type PrimaryDimension = 'ticketType' | 'gateway';
 
@@ -11,12 +11,20 @@
   let breakdownByTicketType = $state(false);
   let expandedRows = $state(new Set<string>());
 
-  // Get columns for current view
-  function getColumns() {
+  // Get columns for current view (for CSV export - includes breakdown column)
+  function getColumnsForCsv() {
     const hasBreakdown = 
       (primaryDimension === 'ticketType' && breakdownByGateway) ||
       (primaryDimension === 'gateway' && breakdownByTicketType);
     return getColumnsForView(primaryDimension, hasBreakdown);
+  }
+
+  // Get columns for table view (excludes breakdown column - it appears as sub-row value)
+  function getColumns() {
+    const hasBreakdown = 
+      (primaryDimension === 'ticketType' && breakdownByGateway) ||
+      (primaryDimension === 'gateway' && breakdownByTicketType);
+    return getColumnsForTable(primaryDimension, hasBreakdown);
   }
 
   function getColumnValue<T>(column: ReportColumn<T>, row: T): any {
@@ -68,8 +76,8 @@
       (primaryDimension === 'ticketType' && breakdownByGateway) ||
       (primaryDimension === 'gateway' && breakdownByTicketType);
 
-    // Build header using column definitions
-    const currentColumns = getColumns();
+    // Build header using column definitions (for CSV, include breakdown column)
+    const currentColumns = getColumnsForCsv();
     const headers = currentColumns.map(col => col.label);
     lines.push(headers.map(escapeCsvField).join(','));
 
@@ -268,7 +276,7 @@
                         />
                       </svg>
                       <div
-                        class="tooltip-content fixed opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-200 z-50 w-64 p-2 text-xs text-white bg-gray-900 rounded shadow-lg pointer-events-none whitespace-normal"
+                        class="tooltip-content fixed opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-200 z-50 w-64 p-2 text-xs text-white bg-gray-900 rounded shadow-lg pointer-events-none whitespace-normal normal-case"
                         style="transform: translateX(-50%) translateY(-100%);"
                       >
                         {column.description}
@@ -321,9 +329,7 @@
                     {#each getColumns() as column, colIndex}
                       <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-600 {colIndex === 0 ? 'pl-12' : ''}">
                         {#if colIndex === 0}
-                          <span class="ml-2">{formatColumnValue(column, row)}</span>
-                        {:else if colIndex === 1}
-                          <span>{formatColumnValue(column, gatewayRow)}</span>
+                          <span class="ml-2">{gatewayRow.gateway}</span>
                         {:else}
                           {formatColumnValue(column, gatewayRow)}
                         {/if}
@@ -368,9 +374,7 @@
                     {#each getColumns() as column, colIndex}
                       <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-600 {colIndex === 0 ? 'pl-12' : ''}">
                         {#if colIndex === 0}
-                          <span class="ml-2">{formatColumnValue(column, row)}</span>
-                        {:else if colIndex === 1}
-                          <span>{formatColumnValue(column, ticketTypeRow)}</span>
+                          <span class="ml-2">{ticketTypeRow.ticketType}</span>
                         {:else}
                           {formatColumnValue(column, ticketTypeRow)}
                         {/if}

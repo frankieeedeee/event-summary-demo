@@ -1,5 +1,41 @@
 import type { AttendeeRow, ReportData, ReportRow, GatewayBreakdownRow, GatewayReportRow, TicketTypeBreakdownRow } from './types';
 
+// Helper function to initialize zero values for all numeric fields
+function initZeroNumericFields() {
+  return {
+    humanitixPassedOnFees: 0,
+    humanitixAbsorbedFees: 0,
+    amexSurcharge: 0,
+    customTax: 0,
+    zipFeeAbsorbed: 0,
+    afterpayFeeAbsorbed: 0,
+    refunds: 0,
+    feeRebate: 0,
+    yourEarnings: 0,
+    refundedFees: 0,
+    discountRedeemed: 0,
+    taxOnSales: 0,
+    taxOnBookingFees: 0,
+  };
+}
+
+// Helper function to aggregate numeric fields from attendee to row
+function aggregateNumericFields(target: any, source: AttendeeRow) {
+  target.humanitixPassedOnFees += source.humanitixPassedOnFees;
+  target.humanitixAbsorbedFees += source.humanitixAbsorbedFees;
+  target.amexSurcharge += source.amexSurcharge;
+  target.customTax += source.customTax;
+  target.zipFeeAbsorbed += source.zipFeeAbsorbed;
+  target.afterpayFeeAbsorbed += source.afterpayFeeAbsorbed;
+  target.refunds += source.refunds;
+  target.feeRebate += source.feeRebate;
+  target.yourEarnings += source.yourEarnings;
+  target.refundedFees += source.refundedFees;
+  target.discountRedeemed += source.discountRedeemed;
+  target.taxOnSales += source.taxOnSales;
+  target.taxOnBookingFees += source.taxOnBookingFees;
+}
+
 export function generateReport(
   validAttendees: AttendeeRow[],
   cancelledAttendees: AttendeeRow[]
@@ -36,13 +72,16 @@ export function generateReport(
       } else {
         existingTicketType.cancelledCount += 1;
       }
+      aggregateNumericFields(existingTicketType, attendee);
     } else {
       ticketTypeMap.set(attendee.ticketType, {
         ticketType: attendee.ticketType,
         totalPaid: attendee.paid,
         validCount: attendee.status === 'Valid' ? 1 : 0,
         cancelledCount: attendee.status === 'Cancelled' ? 1 : 0,
+        ...initZeroNumericFields(),
       });
+      aggregateNumericFields(ticketTypeMap.get(attendee.ticketType)!, attendee);
     }
 
     // Track gateway breakdown for ticket type if gateway exists
@@ -63,13 +102,16 @@ export function generateReport(
         } else {
           existingGateway.cancelledCount += 1;
         }
+        aggregateNumericFields(existingGateway, attendee);
       } else {
         ticketGatewayMap.set(gatewayKey, {
           gateway: gatewayKey,
           totalPaid: attendee.paid,
           validCount: attendee.status === 'Valid' ? 1 : 0,
           cancelledCount: attendee.status === 'Cancelled' ? 1 : 0,
+          ...initZeroNumericFields(),
         });
+        aggregateNumericFields(ticketGatewayMap.get(gatewayKey)!, attendee);
       }
 
       // Aggregate by gateway (primary dimension)
@@ -82,13 +124,16 @@ export function generateReport(
         } else {
           existingGatewayPrimary.cancelledCount += 1;
         }
+        aggregateNumericFields(existingGatewayPrimary, attendee);
       } else {
         gatewayMap.set(gatewayKey, {
           gateway: gatewayKey,
           totalPaid: attendee.paid,
           validCount: attendee.status === 'Valid' ? 1 : 0,
           cancelledCount: attendee.status === 'Cancelled' ? 1 : 0,
+          ...initZeroNumericFields(),
         });
+        aggregateNumericFields(gatewayMap.get(gatewayKey)!, attendee);
       }
 
       // Track ticket type breakdown for gateway
@@ -107,13 +152,16 @@ export function generateReport(
         } else {
           existingTicketTypeBreakdown.cancelledCount += 1;
         }
+        aggregateNumericFields(existingTicketTypeBreakdown, attendee);
       } else {
         gatewayTicketTypeMap.set(attendee.ticketType, {
           ticketType: attendee.ticketType,
           totalPaid: attendee.paid,
           validCount: attendee.status === 'Valid' ? 1 : 0,
           cancelledCount: attendee.status === 'Cancelled' ? 1 : 0,
+          ...initZeroNumericFields(),
         });
+        aggregateNumericFields(gatewayTicketTypeMap.get(attendee.ticketType)!, attendee);
       }
     }
   }
@@ -144,6 +192,7 @@ export function generateReport(
           totalPaid: 0,
           validCount: 0,
           cancelledCount: 0,
+          ...initZeroNumericFields(),
         });
       }
     }
@@ -175,6 +224,7 @@ export function generateReport(
           totalPaid: 0,
           validCount: 0,
           cancelledCount: 0,
+          ...initZeroNumericFields(),
         });
       }
     }
