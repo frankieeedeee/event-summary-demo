@@ -118,18 +118,38 @@ export function generateReport(
     }
   }
 
+  // Collect all unique gateways and ticket types for consistent breakdowns
+  const allGateways = Array.from(gatewayMap.keys()).sort((a, b) => a.localeCompare(b));
+  const allTicketTypes = Array.from(ticketTypeMap.keys()).sort((a, b) => a.localeCompare(b));
+
   // Convert ticket type map to array and sort
   const rows = Array.from(ticketTypeMap.values()).sort((a, b) =>
     a.ticketType.localeCompare(b.ticketType)
   );
 
   // Attach gateway breakdowns to each ticket type row
+  // Ensure all gateways appear in each breakdown, even if they have 0 values
   for (const row of rows) {
     const gatewayMapForTicket = gatewayBreakdownMap.get(row.ticketType);
-    if (gatewayMapForTicket && gatewayMapForTicket.size > 0) {
-      row.gatewayBreakdown = Array.from(gatewayMapForTicket.values()).sort((a, b) =>
-        a.gateway.localeCompare(b.gateway)
-      );
+    const gatewayBreakdown: GatewayBreakdownRow[] = [];
+    
+    for (const gateway of allGateways) {
+      const existingBreakdown = gatewayMapForTicket?.get(gateway);
+      if (existingBreakdown) {
+        gatewayBreakdown.push(existingBreakdown);
+      } else {
+        // Create empty breakdown for gateway that doesn't exist for this ticket type
+        gatewayBreakdown.push({
+          gateway,
+          totalPaid: 0,
+          validCount: 0,
+          cancelledCount: 0,
+        });
+      }
+    }
+    
+    if (gatewayBreakdown.length > 0) {
+      row.gatewayBreakdown = gatewayBreakdown;
     }
   }
 
@@ -139,12 +159,28 @@ export function generateReport(
   );
 
   // Attach ticket type breakdowns to each gateway row
+  // Ensure all ticket types appear in each breakdown, even if they have 0 values
   for (const row of gatewayRows) {
     const ticketTypeMapForGateway = ticketTypeBreakdownMap.get(row.gateway);
-    if (ticketTypeMapForGateway && ticketTypeMapForGateway.size > 0) {
-      row.ticketTypeBreakdown = Array.from(ticketTypeMapForGateway.values()).sort((a, b) =>
-        a.ticketType.localeCompare(b.ticketType)
-      );
+    const ticketTypeBreakdown: TicketTypeBreakdownRow[] = [];
+    
+    for (const ticketType of allTicketTypes) {
+      const existingBreakdown = ticketTypeMapForGateway?.get(ticketType);
+      if (existingBreakdown) {
+        ticketTypeBreakdown.push(existingBreakdown);
+      } else {
+        // Create empty breakdown for ticket type that doesn't exist for this gateway
+        ticketTypeBreakdown.push({
+          ticketType,
+          totalPaid: 0,
+          validCount: 0,
+          cancelledCount: 0,
+        });
+      }
+    }
+    
+    if (ticketTypeBreakdown.length > 0) {
+      row.ticketTypeBreakdown = ticketTypeBreakdown;
     }
   }
 
