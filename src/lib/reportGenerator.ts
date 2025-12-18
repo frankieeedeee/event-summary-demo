@@ -40,6 +40,9 @@ export function generateReport(
   validAttendees: AttendeeRow[],
   cancelledAttendees: AttendeeRow[]
 ): ReportData {
+  const startTime = performance.now();
+  console.log(`[ReportGenerator] generateReport: Starting - Valid: ${validAttendees.length}, Cancelled: ${cancelledAttendees.length}`);
+  
   // Use event name from first valid attendee (or first cancelled if no valid)
   const eventName =
     validAttendees.length > 0
@@ -49,7 +52,9 @@ export function generateReport(
         : '';
 
   // Combine all attendees
+  const combineStart = performance.now();
   const allAttendees = [...validAttendees, ...cancelledAttendees];
+  console.log(`[ReportGenerator] Combined ${allAttendees.length} attendees in ${(performance.now() - combineStart).toFixed(2)}ms`);
 
   // Aggregate by ticket type
   const ticketTypeMap = new Map<string, ReportRow>();
@@ -61,7 +66,18 @@ export function generateReport(
   // Track ticket type breakdowns: gateway -> ticketType -> breakdown
   const ticketTypeBreakdownMap = new Map<string, Map<string, TicketTypeBreakdownRow>>();
 
+  const loopStart = performance.now();
+  let processedCount = 0;
+  const logInterval = Math.max(10000, Math.floor(allAttendees.length / 10)); // Log every 10% or every 10k items
+  
   for (const attendee of allAttendees) {
+    processedCount++;
+    
+    if (processedCount % logInterval === 0) {
+      const elapsed = performance.now() - loopStart;
+      const rate = processedCount / elapsed * 1000; // items per second
+      console.log(`[ReportGenerator] Processed ${processedCount}/${allAttendees.length} (${(processedCount / allAttendees.length * 100).toFixed(1)}%) - ${rate.toFixed(0)} items/sec`);
+    }
     // Aggregate by ticket type (primary dimension)
     const existingTicketType = ticketTypeMap.get(attendee.ticketType);
 
@@ -165,18 +181,26 @@ export function generateReport(
       }
     }
   }
+  
+  const loopDuration = performance.now() - loopStart;
+  console.log(`[ReportGenerator] Main loop completed ${allAttendees.length} items in ${loopDuration.toFixed(2)}ms (${(allAttendees.length / loopDuration * 1000).toFixed(0)} items/sec)`);
 
   // Collect all unique gateways and ticket types for consistent breakdowns
+  const sortStart = performance.now();
   const allGateways = Array.from(gatewayMap.keys()).sort((a, b) => a.localeCompare(b));
   const allTicketTypes = Array.from(ticketTypeMap.keys()).sort((a, b) => a.localeCompare(b));
+  console.log(`[ReportGenerator] Sorted gateways and ticket types in ${(performance.now() - sortStart).toFixed(2)}ms`);
 
   // Convert ticket type map to array and sort
+  const convertStart = performance.now();
   const rows = Array.from(ticketTypeMap.values()).sort((a, b) =>
     a.ticketType.localeCompare(b.ticketType)
   );
+  console.log(`[ReportGenerator] Converted ticket type map to array in ${(performance.now() - convertStart).toFixed(2)}ms`);
 
   // Attach gateway breakdowns to each ticket type row
   // Ensure all gateways appear in each breakdown, even if they have 0 values
+  const breakdownStart = performance.now();
   for (const row of rows) {
     const gatewayMapForTicket = gatewayBreakdownMap.get(row.ticketType);
     const gatewayBreakdown: GatewayBreakdownRow[] = [];
@@ -201,14 +225,18 @@ export function generateReport(
       row.gatewayBreakdown = gatewayBreakdown;
     }
   }
+  console.log(`[ReportGenerator] Attached gateway breakdowns in ${(performance.now() - breakdownStart).toFixed(2)}ms`);
 
   // Convert gateway map to array and sort
+  const gatewayConvertStart = performance.now();
   const gatewayRows = Array.from(gatewayMap.values()).sort((a, b) =>
     a.gateway.localeCompare(b.gateway)
   );
+  console.log(`[ReportGenerator] Converted gateway map to array in ${(performance.now() - gatewayConvertStart).toFixed(2)}ms`);
 
   // Attach ticket type breakdowns to each gateway row
   // Ensure all ticket types appear in each breakdown, even if they have 0 values
+  const ticketTypeBreakdownStart = performance.now();
   for (const row of gatewayRows) {
     const ticketTypeMapForGateway = ticketTypeBreakdownMap.get(row.gateway);
     const ticketTypeBreakdown: TicketTypeBreakdownRow[] = [];
@@ -233,6 +261,10 @@ export function generateReport(
       row.ticketTypeBreakdown = ticketTypeBreakdown;
     }
   }
+  console.log(`[ReportGenerator] Attached ticket type breakdowns in ${(performance.now() - ticketTypeBreakdownStart).toFixed(2)}ms`);
+
+  const totalDuration = performance.now() - startTime;
+  console.log(`[ReportGenerator] generateReport: Completed in ${totalDuration.toFixed(2)}ms`);
 
   return {
     eventName,

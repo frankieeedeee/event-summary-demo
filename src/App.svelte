@@ -22,9 +22,22 @@
   let cancelledAttendees = $state<AttendeeRow[]>([]);
 
   function handleDataParsed(data: { validAttendees: AttendeeRow[]; cancelledAttendees: AttendeeRow[] }) {
+    const startTime = performance.now();
+    console.log(`[App] handleDataParsed: Starting - Valid: ${data.validAttendees.length}, Cancelled: ${data.cancelledAttendees.length}`);
+    
+    const stateStart = performance.now();
     validAttendees = data.validAttendees;
     cancelledAttendees = data.cancelledAttendees;
+    console.log(`[App] State updated in ${(performance.now() - stateStart).toFixed(2)}ms`);
+    
+    const reportStart = performance.now();
+    console.log(`[App] Starting report generation...`);
     reportData = generateReport(data.validAttendees, data.cancelledAttendees);
+    const reportDuration = performance.now() - reportStart;
+    console.log(`[App] Report generation completed in ${reportDuration.toFixed(2)}ms`);
+    
+    const totalDuration = performance.now() - startTime;
+    console.log(`[App] handleDataParsed: Completed in ${totalDuration.toFixed(2)}ms`);
   }
 
   function handleAgree() {

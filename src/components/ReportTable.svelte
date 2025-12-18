@@ -6,6 +6,7 @@
   type PrimaryDimension = 'ticketType' | 'gateway';
 
   const { 
+    reportData: propReportData,
     validAttendees: allValidAttendees,
     cancelledAttendees: allCancelledAttendees
   } = $props<{ 
@@ -52,15 +53,21 @@
     }
   });
 
-  // Filter attendees based on selected dates
+  // Check if filtering is needed (not "all" selected)
+  const needsFiltering = $derived(!selectedDates.has('all'));
+
+  // Filter attendees based on selected dates (only when needed)
   const filteredAttendees = $derived.by(() => {
-    if (selectedDates.has('all')) {
+    if (!needsFiltering) {
+      // No filtering needed - return references to avoid creating new arrays
       return {
         valid: allValidAttendees,
-        cancelled: allCancelledAttendees
+        cancelled: allCancelledAttendees,
+        isFiltered: false
       };
     }
 
+    const filterStart = performance.now();
     const filteredValid = allValidAttendees.filter((attendee: AttendeeRow) => {
       if (!attendee.eventDateTime) return false;
       return selectedDates.has(attendee.eventDateTime);
@@ -70,17 +77,31 @@
       if (!attendee.eventDateTime) return false;
       return selectedDates.has(attendee.eventDateTime);
     });
+    
+    const filterDuration = performance.now() - filterStart;
+    console.log(`[ReportTable] Filtered attendees in ${filterDuration.toFixed(2)}ms - Valid: ${filteredValid.length}, Cancelled: ${filteredCancelled.length}`);
 
     return {
       valid: filteredValid,
-      cancelled: filteredCancelled
+      cancelled: filteredCancelled,
+      isFiltered: true
     };
   });
 
-  // Generate report from filtered data
+  // Generate report from filtered data (only when filtering is active or prop is not available)
   const reportData = $derived.by(() => {
+    // If we have a prop reportData and no filtering is needed, use the prop
+    if (propReportData && !needsFiltering) {
+      return propReportData;
+    }
+    
+    // Otherwise, generate from filtered data
+    const genStart = performance.now();
     const filtered = filteredAttendees;
-    return generateReport(filtered.valid, filtered.cancelled);
+    const result = generateReport(filtered.valid, filtered.cancelled);
+    const genDuration = performance.now() - genStart;
+    console.log(`[ReportTable] Generated report from filtered data in ${genDuration.toFixed(2)}ms`);
+    return result;
   });
 
   function handleDateSelection(dateStr: string) {

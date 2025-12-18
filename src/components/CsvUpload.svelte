@@ -1,15 +1,9 @@
 <script lang="ts">
   import { parseCSVFile } from '../lib/csvParser';
   import type { AttendeeRow } from '../lib/types';
+  import { storeAttendeeData, loadAttendeeData, clearAttendeeData } from '../lib/storage';
 
-  const SESSION_STORAGE_KEY = 'hx-event-summary-report-data';
   const DATA_VERSION = 1;
-
-  interface StoredData {
-    version: number;
-    validAttendees: AttendeeRow[];
-    cancelledAttendees: AttendeeRow[];
-  }
 
   let {
     onDataParsed,
@@ -21,37 +15,60 @@
   let cancelledFile = $state<File | null>(null);
   let error = $state<string | null>(null);
   let processing = $state(false);
+  let storageProgress = $state<number | null>(null);
   let uploadPanelExpanded = $state(true);
   let validAttendees = $state<AttendeeRow[]>([]);
   let cancelledAttendees = $state<AttendeeRow[]>([]);
 
-  // Load from session storage on mount
+  // Load from storage on mount
   $effect(() => {
     if (typeof window !== 'undefined') {
-      const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
-      if (stored) {
-        try {
-          const parsed: StoredData = JSON.parse(stored);
-
-          // Check version - if outdated, clear storage and force re-upload
-          if (parsed.version < DATA_VERSION) {
-            sessionStorage.removeItem(SESSION_STORAGE_KEY);
-          } else if (parsed.validAttendees && parsed.cancelledAttendees) {
-            // eventDateTime is now stored as a string, so no conversion needed
-            // Call callback with stored data
-            validAttendees = parsed.validAttendees;
-            cancelledAttendees = parsed.cancelledAttendees;
-            onDataParsed?.({
-              validAttendees: parsed.validAttendees,
-              cancelledAttendees: parsed.cancelledAttendees,
-            });
-            uploadPanelExpanded = false; // Collapse if data is loaded
-          }
-        } catch (e) {
-          // Invalid data, clear it
-          sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      const loadStart = performance.now();
+      console.log('[CsvUpload] Starting data load from storage');
+      processing = true;
+      
+      loadAttendeeData(DATA_VERSION, (progress) => {
+        storageProgress = progress;
+        if (progress >= 95) {
+          console.log(`[CsvUpload] Load progress: ${progress.toFixed(1)}%`);
         }
-      }
+      }).then((parsed) => {
+        const loadDuration = performance.now() - loadStart;
+        console.log(`[CsvUpload] Data loaded from storage in ${loadDuration.toFixed(2)}ms`);
+        
+        if (parsed && parsed.validAttendees && parsed.cancelledAttendees) {
+          const callbackStart = performance.now();
+          console.log(`[CsvUpload] Setting state: Valid: ${parsed.validAttendees.length}, Cancelled: ${parsed.cancelledAttendees.length}`);
+          
+          // Call callback with stored data
+          validAttendees = parsed.validAttendees;
+          cancelledAttendees = parsed.cancelledAttendees;
+          
+          const beforeCallback = performance.now();
+          console.log(`[CsvUpload] State set in ${(beforeCallback - callbackStart).toFixed(2)}ms, calling onDataParsed...`);
+          
+          onDataParsed?.({
+            validAttendees: parsed.validAttendees,
+            cancelledAttendees: parsed.cancelledAttendees,
+          });
+          
+          const afterCallback = performance.now();
+          console.log(`[CsvUpload] onDataParsed completed in ${(afterCallback - beforeCallback).toFixed(2)}ms`);
+          console.log(`[CsvUpload] Total callback time: ${(afterCallback - callbackStart).toFixed(2)}ms`);
+          
+          uploadPanelExpanded = false; // Collapse if data is loaded
+        }
+        processing = false;
+        storageProgress = null;
+        console.log(`[CsvUpload] Load process completed in ${(performance.now() - loadStart).toFixed(2)}ms`);
+      }).catch((e) => {
+        // Error loading data, clear it
+        const loadDuration = performance.now() - loadStart;
+        console.error(`[CsvUpload] Failed to load stored data after ${loadDuration.toFixed(2)}ms:`, e);
+        clearAttendeeData();
+        processing = false;
+        storageProgress = null;
+      });
     }
   });
 
@@ -91,14 +108,23 @@
       // Log first 100 rows of combined result
       console.log('Combined CSV result (first 100 rows):', combinedAttendees.slice(0, 100));
 
-      // Store parsed attendee data (result of csvParser) in session storage with version
-      if (typeof window !== 'undefined') {
-        const storedData: StoredData = {
-          version: DATA_VERSION,
-          validAttendees: parsedValidAttendees,
-          cancelledAttendees: parsedCancelledAttendees,
-        };
-        sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(storedData));
+      // Store parsed attendee data using optimized IndexedDB storage
+      try {
+        storageProgress = 0;
+        await storeAttendeeData(
+          parsedValidAttendees,
+          parsedCancelledAttendees,
+          DATA_VERSION,
+          (progress) => {
+            storageProgress = progress;
+          }
+        );
+        storageProgress = null;
+      } catch (err) {
+        // Log error but don't fail the upload - data is still in memory
+        console.error('Failed to store data:', err);
+        error = 'Data parsed successfully, but failed to save for persistence. You may need to re-upload if you refresh the page.';
+        storageProgress = null;
       }
 
       // Store attendees for display
@@ -120,17 +146,15 @@
     }
   }
 
-  function handleUploadAgain() {
+  async function handleUploadAgain() {
     uploadPanelExpanded = true;
     validFile = null;
     cancelledFile = null;
     error = null;
     validAttendees = [];
     cancelledAttendees = [];
-    // Clear session storage when starting new upload
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    }
+    // Clear storage when starting new upload
+    await clearAttendeeData();
   }
 
   let eventName = $derived(
@@ -231,7 +255,19 @@
     </div>
 
     {#if processing}
-      <div class="mt-4 text-sm text-gray-600">Processing files...</div>
+      <div class="mt-4">
+        <div class="text-sm text-gray-600 mb-2">
+          {storageProgress !== null ? `Saving data... ${Math.round(storageProgress)}%` : 'Processing files...'}
+        </div>
+        {#if storageProgress !== null}
+          <div class="w-full bg-gray-200 rounded-full h-2">
+            <div
+              class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style="width: {storageProgress}%"
+            ></div>
+          </div>
+        {/if}
+      </div>
     {/if}
 
     {#if error}
